@@ -1,6 +1,7 @@
 module Network.Ethereum.Web3.Solidity.AbiEncoding where
 
 import Prelude
+
 import Data.Array (length) as A
 import Data.ByteString (ByteString)
 import Data.ByteString (toUTF8, fromUTF8, toString, fromString, length, Encoding(Hex)) as BS
@@ -21,6 +22,7 @@ import Network.Ethereum.Web3.Solidity.Vector (Vector)
 import Partial.Unsafe (unsafePartial)
 import Text.Parsing.Parser (ParseError, Parser, ParserT, fail, runParser)
 import Text.Parsing.Parser.String (anyChar)
+import Unsafe.Coerce (unsafeCoerce)
 
 -- | Class representing values that have an encoding and decoding instance to/from a solidity type.
 class ABIEncode a where
@@ -184,4 +186,8 @@ toBool bn = not $ bn == zero
 
 -- | Read any number of HexDigits
 take :: forall m. Monad m => Int -> ParserT HexString m HexString
-take n = unsafePartial fromJust <<< mkHexString <<< fromCharArray <$> replicateA n anyChar
+take = \n -> unsafePartial fromJust <<< mkHexString <<< fromCharArray <$> replicateA n anyCharFromHexString
+  where
+    -- | it's safe to change "remaining input" type here
+    anyCharFromHexString :: ParserT HexString m Char
+    anyCharFromHexString = (unsafeCoerce :: ParserT String m Char -> ParserT HexString m Char) anyChar
