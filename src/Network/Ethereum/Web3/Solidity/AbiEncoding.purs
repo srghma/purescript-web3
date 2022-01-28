@@ -189,5 +189,6 @@ take :: forall m. Monad m => Int -> ParserT HexString m HexString
 take = \n -> unsafePartial fromJust <<< mkHexString <<< fromCharArray <$> replicateA n anyCharFromHexString
   where
     -- | it's safe to change "remaining input" type here
+    -- | b.c. it's an input - it's already validated
     anyCharFromHexString :: ParserT HexString m Char
     anyCharFromHexString = (unsafeCoerce :: ParserT String m Char -> ParserT HexString m Char) anyChar
