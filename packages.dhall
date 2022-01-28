@@ -3,37 +3,37 @@ let upstream =
 
 let overrides = {=}
 
-let additions =
-      { coroutine-transducers =
-        { dependencies =
-          [ "aff", "coroutines", "effect", "maybe", "psci-support" ]
-        , repo =
-            "https://github.com/blinky3713/purescript-coroutine-transducers"
-        , version = "v1.0.0"
-        }
-      , eth-core =
-        { dependencies =
-          [ "argonaut"
-          , "bytestrings"
-          , "console"
-          , "debug"
-          , "effect"
-          , "foreign-generic"
-          , "ordered-collections"
-          , "parsing"
-          , "prelude"
-          , "psci-support"
-          , "ring-modules"
-          , "simple-json"
-          ]
-        , repo = "https://github.com/f-o-a-m/purescript-eth-core.git"
-        , version = "v7.0.0"
-        }
-      , tagged =
-        { dependencies = [ "identity", "profunctor" ]
-        , repo = "https://github.com/kejace/purescript-tagged"
-        , version = "v0.14"
-        }
-      }
+let additions = /home/srghma/projects/foam.tcr/foamSpacePackages.dhall
+      -- { coroutine-transducers =
+      --   { dependencies =
+      --     [ "aff", "coroutines", "effect", "maybe", "psci-support" ]
+      --   , repo =
+      --       "https://github.com/blinky3713/purescript-coroutine-transducers"
+      --   , version = "v1.0.0"
+      --   }
+      -- , eth-core =
+      --   { dependencies =
+      --     [ "argonaut"
+      --     , "bytestrings"
+      --     , "console"
+      --     , "debug"
+      --     , "effect"
+      --     , "foreign-generic"
+      --     , "ordered-collections"
+      --     , "parsing"
+      --     , "prelude"
+      --     , "psci-support"
+      --     , "ring-modules"
+      --     , "simple-json"
+      --     ]
+      --   , repo = "https://github.com/f-o-a-m/purescript-eth-core.git"
+      --   , version = "v7.0.0"
+      --   }
+      -- , tagged =
+      --   { dependencies = [ "identity", "profunctor" ]
+      --   , repo = "https://github.com/kejace/purescript-tagged"
+      --   , version = "v0.14"
+      --   }
+      -- }
 
 in  upstream // overrides // additions
