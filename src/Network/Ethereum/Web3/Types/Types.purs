@@ -20,7 +20,7 @@ module Network.Ethereum.Web3.Types.Types
   , Web3(..)
   , Web3Par
   , throwWeb3
-  , Filter
+  , Filter(..)
   , defaultFilter
   , _address
   , _topics
