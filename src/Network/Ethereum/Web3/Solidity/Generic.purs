@@ -19,23 +19,24 @@ module Network.Ethereum.Web3.Solidity.Generic
   ) where
 
 import Prelude
+
 import Control.Monad.State.Class (get)
 import Data.Array (foldl, length, reverse, sort, uncons, (:))
 import Data.Either (Either)
 import Data.Functor.Tagged (Tagged, untagged, tagged)
 import Data.Generic.Rep (class Generic, Argument(..), Constructor(..), NoArguments(..), Product(..), from, to)
 import Data.Maybe (Maybe(..))
-import Record as Record
 import Data.Symbol (class IsSymbol)
+import Network.Ethereum.Core.BigNumber (unsafeToInt)
+import Network.Ethereum.Core.HexString (HexString, hexLength, unHex)
 import Network.Ethereum.Web3.Solidity.AbiEncoding (class ABIDecode, class ABIEncode, fromDataParser, takeBytes, toDataBuilder)
 import Network.Ethereum.Web3.Solidity.EncodingType (class EncodingType, isDynamic)
-import Network.Ethereum.Core.HexString (HexString, hexLength)
-import Network.Ethereum.Core.BigNumber (unsafeToInt)
+import Prim.Row as Row
+import Record as Record
 import Text.Parsing.Parser (ParseError, ParseState(..), Parser, runParser)
 import Text.Parsing.Parser.Combinators (lookAhead)
 import Text.Parsing.Parser.Pos (Position(..))
 import Type.Proxy (Proxy(..))
-import Prim.Row as Row
 import Type.RowList (class ListToRow, Cons, Nil, RLProxy(..), RowList)
 
 -- | A class for encoding generically composed datatypes to their abi encoding
@@ -44,7 +45,7 @@ class GenericABIEncode a where
 
 -- | A class for decoding generically composed datatypes from their abi encoding
 class GenericABIDecode a where
-  genericFromDataParser :: Parser HexString a
+  genericFromDataParser :: Parser String a
 
 -- | An internally used type for encoding
 data EncodedValue
@@ -192,7 +193,7 @@ genericABIDecode ::
   forall a rep.
   Generic a rep =>
   GenericABIDecode rep =>
-  Parser HexString a
+  Parser String a
 genericABIDecode = to <$> genericFromDataParser
 
 genericFromData ::
@@ -201,15 +202,15 @@ genericFromData ::
   GenericABIDecode rep =>
   HexString ->
   Either ParseError a
-genericFromData = flip runParser genericABIDecode
+genericFromData = flip runParser genericABIDecode <<< unHex
 
 -- helpers
-factorParser :: forall a. ABIDecode a => EncodingType a => Parser HexString a
+factorParser :: forall a. ABIDecode a => EncodingType a => Parser String a
 factorParser
   | not $ isDynamic (Proxy :: Proxy a) = fromDataParser
   | otherwise = dParser
 
-dParser :: forall a. ABIDecode a => Parser HexString a
+dParser :: forall a. ABIDecode a => Parser String a
 dParser = do
   dataOffset <- unsafeToInt <$> fromDataParser
   lookAhead
