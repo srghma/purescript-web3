@@ -36,7 +36,7 @@ class ABIDecode a where
   fromDataParser :: Parser HexString a
 
 -- | Parse encoded value, droping the leading `0x`
--- TODO: rename to `runAbiDecodeParser`
+-- TODO: rename to `abiDecode`
 fromData :: forall a. ABIDecode a => HexString -> Either ParseError a
 fromData = flip runParser fromDataParser
 
