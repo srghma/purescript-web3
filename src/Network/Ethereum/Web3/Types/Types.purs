@@ -133,8 +133,8 @@ instance showChainCursor :: Show ChainCursor where
 instance ordChainCursor :: Ord ChainCursor where
   compare Latest Latest = EQ
   compare (BN a) (BN b) = compare a b
-  compare _ Latest = LT
-  compare a b = invert $ compare b a
+  compare (BN _) Latest = LT
+  compare Latest (BN _) = GT
 
 instance encodeChainCursor :: Encode ChainCursor where
   encode cm = case cm of

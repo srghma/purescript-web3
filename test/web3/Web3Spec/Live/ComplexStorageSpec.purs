@@ -51,7 +51,7 @@ spec provider =
 
           bytes2s = [ elem :< elem :< elem :< elem :< nilVector, elem :< elem :< elem :< elem :< nilVector ]
 
-          txOptions =
+          transactionOptions =
             defaultTestTxOptions # _from ?~ userAddress
               # _to
               ?~ complexStorageAddress
@@ -68,7 +68,7 @@ spec provider =
             , _bytes2VectorListVal: bytes2s
             }
 
-          setValsAction = ComplexStorage.setValues txOptions arg
+          setValsAction = ComplexStorage.setValues transactionOptions arg
         pure unit
         Tuple _ _event <-
           assertWeb3 provider

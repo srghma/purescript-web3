@@ -26,32 +26,38 @@ import Network.Ethereum.Web3.Api (eth_call, eth_sendTransaction)
 import Network.Ethereum.Web3.Contract.Events (MultiFilterStreamState(..), event', FilterStreamState, ChangeReceipt, EventHandler)
 import Network.Ethereum.Web3.Solidity (class DecodeEvent, class GenericABIDecode, class GenericABIEncode, class RecordFieldsIso, genericABIEncode, genericFromData, genericFromRecordFields)
 import Network.Ethereum.Web3.Types (class TokenUnit, CallError(..), ChainCursor, ETHER, Filter, NoPay, TransactionOptions, Value, Web3, _data, _value, convert, throwWeb3)
+import Network.Ethereum.Web3.Types.TokenUnit (MinorUnit)
 
-class EventFilter :: forall k. k -> Constraint
-class EventFilter e where
+class EventFilter :: forall eventK. eventK -> Constraint
+class EventFilter event where
   -- | Event filter structure used by low-level subscription methods
-  eventFilter :: Proxy e -> Address -> Filter e
+  eventFilter :: Proxy event -> Address -> Filter event
 
 -- | run `event'` one block at a time.
 event ::
-  forall e i ni.
-  DecodeEvent i ni e =>
-  Filter e ->
-  EventHandler Web3 e ->
-  Web3 (Either (FilterStreamState e) ChangeReceipt)
+  forall indexedTypesTagged nonIndexedTypesTagged event.
+  DecodeEvent indexedTypesTagged nonIndexedTypesTagged event =>
+  Filter event ->
+  EventHandler Web3 event ->
+  Web3 (Either (FilterStreamState event) ChangeReceipt)
 event filter handler = do
-  eRes <- event' { ev: filter } { ev: handler } { windowSize: 0, trailBy: 0 }
-  pure $ lmap f eRes
+  eventFilterResult <-
+    event'
+    { singletonEventFilter: filter }
+    { singletonEventFilter: handler }
+    { windowSize: 0
+    , trailBy: 0
+    }
+  pure $ lmap f eventFilterResult
   where
-  f :: MultiFilterStreamState ( ev :: Filter e ) -> FilterStreamState e
+  -- f
+  --   :: MultiFilterStreamState ( singletonEventFilter :: Filter event )
+  --   -> FilterStreamState event
   f (MultiFilterStreamState { currentBlock, windowSize, trailBy, filters }) =
-    let
-      { ev: filter } = filters
-    in
       { currentBlock
       , windowSize
       , trailBy
-      , initialFilter: filter
+      , initialFilter: filters.singletonEventFilter
       }
 
 --------------------------------------------------------------------------------
@@ -59,117 +65,128 @@ event filter handler = do
 --------------------------------------------------------------------------------
 -- | Class paramaterized by values which are ABIEncodable, allowing the templating of
 -- | of a transaction with this value as the payload.
-class TxMethod (selector :: Symbol) a where
+class TxMethod (functionSignature :: Symbol) functionArguments where
   -- | Send a transaction for given contract `Address`, value and input data
   sendTx ::
-    forall u.
-    TokenUnit (Value (u ETHER)) =>
-    IsSymbol selector =>
-    TransactionOptions u ->
-    Tagged (Proxy selector) a ->
+    forall unit.
+    TokenUnit (Value (unit ETHER)) =>
+    IsSymbol functionSignature =>
+    TransactionOptions unit ->
+    Tagged (Proxy functionSignature) functionArguments ->
     Web3 HexString
 
 -- ^ `Web3` wrapped tx hash
-class CallMethod (selector :: Symbol) a b where
+class CallMethod (functionSignature :: Symbol) functionArguments result where
   -- | Constant call given contract `Address` in mode and given input data
   call ::
-    IsSymbol selector =>
+    IsSymbol functionSignature =>
     TransactionOptions NoPay ->
     ChainCursor ->
-    Tagged (Proxy selector) a ->
-    Web3 (Either CallError b)
+    Tagged (Proxy functionSignature) functionArguments ->
+    Web3 (Either CallError result)
 
 -- ^ `Web3` wrapped result
-instance txmethodAbiEncode :: (Generic a rep, GenericABIEncode rep) => TxMethod s a where
+instance (Generic functionArguments functionArgumentsRep, GenericABIEncode functionArgumentsRep) => TxMethod s functionArguments where
   sendTx = _sendTransaction
 
-instance callmethodAbiEncode :: (Generic a arep, GenericABIEncode arep, Generic b brep, GenericABIDecode brep) => CallMethod s a b where
+instance (Generic functionArguments arep, GenericABIEncode arep, Generic b brep, GenericABIDecode brep) => CallMethod s functionArguments b where
   call = _call
 
 _sendTransaction ::
-  forall a u rep selector.
-  IsSymbol selector =>
-  Generic a rep =>
-  GenericABIEncode rep =>
-  TokenUnit (Value (u ETHER)) =>
-  TransactionOptions u ->
-  Tagged (Proxy selector) a ->
+  forall functionArguments unit functionArgumentsRep functionSignature.
+  IsSymbol functionSignature =>
+  Generic functionArguments functionArgumentsRep =>
+  GenericABIEncode functionArgumentsRep =>
+  TokenUnit (Value (unit ETHER)) =>
+  TransactionOptions unit ->
+  Tagged (Proxy functionSignature) functionArguments ->
   Web3 HexString
-_sendTransaction txOptions dat = do
+_sendTransaction transactionOptions transationData = do
   let
-    sel = toSelector <<< reflectSymbol $ (Proxy :: Proxy selector)
-  eth_sendTransaction $ txdata $ sel <> (genericABIEncode <<< untagged $ dat)
+    functionSelectorEncoded :: HexString
+    functionSelectorEncoded = toSelector $ reflectSymbol $ (Proxy :: Proxy functionSignature)
+  eth_sendTransaction $ setTransactionDataAndConvertValue $ functionSelectorEncoded <> (genericABIEncode $ untagged $ transationData)
   where
-  txdata d =
-    txOptions # _data .~ Just d
+  setTransactionDataAndConvertValue transationData' =
+    transactionOptions # _data .~ Just transationData'
       # _value
       %~ map convert
 
 _call ::
-  forall a arep b brep selector.
-  IsSymbol selector =>
-  Generic a arep =>
+  forall functionArguments arep b brep functionSignature.
+  IsSymbol functionSignature =>
+  Generic functionArguments arep =>
   GenericABIEncode arep =>
   Generic b brep =>
   GenericABIDecode brep =>
   TransactionOptions NoPay ->
   ChainCursor ->
-  Tagged (Proxy selector) a ->
+  Tagged (Proxy functionSignature) functionArguments ->
   Web3 (Either CallError b)
-_call txOptions cursor dat = do
+_call transactionOptions cursor transationData = do
   let
-    sig = reflectSymbol (Proxy :: Proxy selector)
+    functionSignature :: String
+    functionSignature = reflectSymbol (Proxy :: Proxy functionSignature)
 
-    sel = toSelector sig
+    functionSelectorEncoded :: HexString
+    functionSelectorEncoded = toSelector functionSignature
 
-    fullData = sel <> (genericABIEncode <<< untagged $ dat)
-  res <- eth_call (txdata $ sel <> (genericABIEncode <<< untagged $ dat)) cursor
+    fullDataEncoded = functionSelectorEncoded <> (genericABIEncode $ untagged $ transationData)
+  res <- eth_call
+    (setTransactionData fullDataEncoded)
+    cursor
   case genericFromData res of
     Left err ->
       if res == mempty then
-        pure <<< Left
+        pure $ Left
           $ NullStorageError
-              { signature: sig
-              , _data: fullData
+              { signature: functionSignature
+              , _data: fullDataEncoded
               }
       else
-        throwWeb3 <<< error $ show err
+        throwWeb3 $ error $ show err
     Right x -> pure $ Right x
   where
-  txdata d = txOptions # _data .~ Just d
+  setTransactionData :: HexString -> TransactionOptions NoPay
+  setTransactionData transactionData = transactionOptions # _data .~ Just transactionData
 
 deployContract ::
-  forall a rep t.
-  Generic a rep =>
-  GenericABIEncode rep =>
+  forall functionArguments functionArgumentsRep t.
+  Generic functionArguments functionArgumentsRep =>
+  GenericABIEncode functionArgumentsRep =>
   TransactionOptions NoPay ->
   HexString ->
-  Tagged t a ->
+  Tagged t functionArguments ->
   Web3 HexString
-deployContract txOptions deployByteCode args =
+deployContract transactionOptions deployByteCode args =
   let
+    txdata :: TransactionOptions MinorUnit
     txdata =
-      txOptions # _data ?~ deployByteCode <> genericABIEncode (untagged args)
-        # _value
-        %~ map convert -- convert `NoPay ETHER` to `MinorUnit ETHER` (BigNumber "0" * BigNumber "1" = BigNumber "0")
+      transactionOptions
+        # _data ?~ deployByteCode <> genericABIEncode (untagged args)
+        -- convert `NoPay ETHER` to `MinorUnit ETHER` (BigNumber "0" * BigNumber "1" = BigNumber "0")
+        # _value %~ map convert
   in
     eth_sendTransaction txdata
 
 mkDataField ::
-  forall selector a tupleNName genericTaggedRepresentation recordRow recordRowList.
-  IsSymbol selector =>
-  Generic a (Constructor tupleNName genericTaggedRepresentation) =>
+  forall functionSignature tupleNWithTaggedArguments tupleNName genericTaggedRepresentation recordRow recordRowList.
+  IsSymbol functionSignature =>
+  Generic tupleNWithTaggedArguments (Constructor tupleNName genericTaggedRepresentation) =>
   GenericABIEncode (Constructor tupleNName genericTaggedRepresentation) =>
   RecordFieldsIso genericTaggedRepresentation recordRow recordRowList =>
-  Proxy (Tagged (Proxy selector) a) ->
+  Proxy (Tagged (Proxy functionSignature) tupleNWithTaggedArguments) ->
   Record recordRow ->
   HexString
-mkDataField _ r =
+mkDataField _ record =
   let
-    sig = reflectSymbol (Proxy :: Proxy selector)
+    functionSignature :: String
+    functionSignature = reflectSymbol (Proxy :: Proxy functionSignature)
 
-    sel = toSelector sig
+    functionSelectorEncoded :: HexString
+    functionSelectorEncoded = toSelector functionSignature
 
-    args = genericFromRecordFields r :: a
+    tupleNWithTaggedArguments :: tupleNWithTaggedArguments
+    tupleNWithTaggedArguments = genericFromRecordFields record
   in
-    sel <> (genericABIEncode args)
+    functionSelectorEncoded <> genericABIEncode tupleNWithTaggedArguments

@@ -271,12 +271,12 @@ mkSetter ::
   m Unit
 mkSetter { contractAddress, userAddress } provider logger _count = do
   let
-    txOptions =
+    transactionOptions =
       defaultTestTxOptions # _from ?~ userAddress
         # _to
         ?~ contractAddress
   logger $ "Setting count to " <> show _count
-  txHash <- assertWeb3 provider $ SimpleStorage.setCount txOptions { _count }
+  txHash <- assertWeb3 provider $ SimpleStorage.setCount transactionOptions { _count }
   _ <- pollTransactionReceipt provider txHash
   pure unit
 

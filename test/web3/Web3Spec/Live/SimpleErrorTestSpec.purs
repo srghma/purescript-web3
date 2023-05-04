@@ -30,15 +30,15 @@ spec provider =
               let
                 { contractAddress: simpleErrorTestAddress, userAddress } = cfg
 
-                txOptions =
+                transactionOptions =
                   defaultTestTxOptions # _to ?~ simpleErrorTestAddress
                     # _from
                     ?~ userAddress
 
                 n = mkUIntN s256 1
-              resp1 <- assertWeb3 provider $ SimpleErrorTest.names txOptions Latest n
+              resp1 <- assertWeb3 provider $ SimpleErrorTest.names transactionOptions Latest n
               resp1 `shouldSatisfy` isLeft
-              resp2 <- assertWeb3 provider $ SimpleErrorTest.testBool txOptions Latest { _arg: true }
+              resp2 <- assertWeb3 provider $ SimpleErrorTest.testBool transactionOptions Latest { _arg: true }
               resp2 `shouldEqual` Right false
-              resp3 <- assertWeb3 provider $ SimpleErrorTest.testBool txOptions Latest { _arg: false }
+              resp3 <- assertWeb3 provider $ SimpleErrorTest.testBool transactionOptions Latest { _arg: false }
               resp3 `shouldEqual` Right true

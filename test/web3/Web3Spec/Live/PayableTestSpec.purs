@@ -30,14 +30,14 @@ spec provider =
               let
                 { contractAddress: payableTestAddress, userAddress } = cfg
 
-                txOptions =
+                transactionOptions =
                   defaultTestTxOptions # _to ?~ payableTestAddress
                     # _value
                     ?~ convert (mkValue one :: Value Ether)
                     # _from
                     ?~ userAddress
 
-                etherAction = PayableTest.seeContent txOptions
+                etherAction = PayableTest.seeContent transactionOptions
               Tuple _ (PayableTest.Content c) <-
                 assertWeb3 provider
                   $ takeEvent (Proxy :: Proxy PayableTest.Content) payableTestAddress etherAction
@@ -47,14 +47,14 @@ spec provider =
               let
                 { contractAddress: payableTestAddress, userAddress } = cfg
 
-                txOptions =
+                transactionOptions =
                   defaultTestTxOptions # _to ?~ payableTestAddress
                     # _value
                     ?~ convert (mkValue one :: Value Shannon)
                     # _from
                     ?~ userAddress
 
-                etherAction = PayableTest.seeContent txOptions
+                etherAction = PayableTest.seeContent transactionOptions
               Tuple _ (PayableTest.Content c) <-
                 assertWeb3 provider
                   $ takeEvent (Proxy :: Proxy PayableTest.Content) payableTestAddress etherAction

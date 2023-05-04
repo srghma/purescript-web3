@@ -39,12 +39,12 @@ instance arrayParserNoArgs :: ArrayParser NoArguments where
 instance arrayParserBase :: ABIDecode a => ArrayParser (Argument a) where
   arrayParser hxs = case uncons hxs of
     Nothing -> Nothing
-    Just { head } -> map Argument <<< hush <<< fromData $ head
+    Just { head } -> map Argument <<< hush <<< fromData $ head -- TODO: maybe we should not `hush` parsing errors?
 
 instance arrayParserInductive :: (ArrayParser as, ABIDecode a) => ArrayParser (Product (Argument a) as) where
   arrayParser hxs = case uncons hxs of
     Nothing -> Nothing
-    Just { head, tail } -> Product <$> (map Argument <<< hush <<< fromData $ head) <*> arrayParser tail
+    Just { head, tail } -> Product <$> (map Argument <<< hush <<< fromData $ head) <*> arrayParser tail -- TODO: maybe we should not `hush` parsing errors?
 
 instance arrayParserConstructor :: ArrayParser as => ArrayParser (Constructor name as) where
   arrayParser = map Constructor <<< arrayParser
@@ -52,6 +52,9 @@ instance arrayParserConstructor :: ArrayParser as => ArrayParser (Constructor na
 -- e.g. parses
 -- ["0x0000....", "0xfffff..."]
 -- to `Maybe (Tuple2 (Tagged (Proxy "xxx") Address) (Tagged (Proxy "yyy") Address))`
+--
+-- NOTE: if at least one element fails to parse - it will return `Nothing`
+--
 -- TODO: rename to `genericArrayABIDecode`
 genericArrayParser ::
   forall a rep.
@@ -81,9 +84,13 @@ parseChange (Change change) anonymous = do
   -- if event is `anonymous` (i.e. has `anonymous` keyword in `event MyEvent(uint256 indexed foo, uint256 bar) anonymous`)
   -- then `topics[0]` is `keccak(EVENT_NAME+"("+EVENT_ARGS.map(canonical_type_of).join(",")+")")`
   -- example - https://gist.github.com/srghma/c8e92bf400d65939f2c7e035199500c8
-  (topics :: Array HexString) <- if anonymous then pure change.topics else _.tail <$> uncons change.topics -- e.g. ['0000...', 'ffff...']
-  indexedData <- genericArrayParser topics -- e.g. `Tuple2 (Tagged (Proxy "foo") BigNumber) (Tagged (Proxy "bar") Address)`
-  nonIndexedData <- hush <<< genericFromData $ change.data -- e.g. `Tuple2 (Tagged (Proxy "foo") BigNumber) (Tagged (Proxy "bar") Address)`
+
+  -- e.g. ['0000...', 'ffff...']
+  (topics :: Array HexString) <- if anonymous then pure change.topics else _.tail <$> uncons change.topics
+  -- e.g. `Tuple2 (Tagged (Proxy "foo") BigNumber) (Tagged (Proxy "bar") Address)`
+  indexedData <- genericArrayParser topics
+  -- e.g. `Tuple2 (Tagged (Proxy "foo") BigNumber) (Tagged (Proxy "bar") Address)`
+  nonIndexedData <- hush <<< genericFromData $ change.data -- TODO: maybe we should not `hush` parsing errors?
   pure $ Event indexedData nonIndexedData
 
 combineChange ::
@@ -102,9 +109,9 @@ combineChange ::
   c
 combineChange (Event a b) = wrap $ build (merge (genericToRecordFields a)) (genericToRecordFields b)
 
-class IndexedEvent :: forall indexedTypesTaggedK nonIndexedTypesTaggedK constructorK. indexedTypesTaggedK -> nonIndexedTypesTaggedK -> constructorK -> Constraint
-class IndexedEvent indexedTypesTagged nonIndexedTypesTagged constructor | constructor -> indexedTypesTagged nonIndexedTypesTagged where
-  isAnonymous :: Proxy constructor -> Boolean
+class IndexedEvent :: forall indexedTypesTaggedK nonIndexedTypesTaggedK eventK. indexedTypesTaggedK -> nonIndexedTypesTaggedK -> eventK -> Constraint
+class IndexedEvent indexedTypesTagged nonIndexedTypesTagged event | event -> indexedTypesTagged nonIndexedTypesTagged where
+  isAnonymous :: Proxy event -> Boolean
 
 decodeEventDef ::
   forall
@@ -131,8 +138,10 @@ decodeEventDef change = do
 
 class DecodeEvent :: forall k1 k2. k1 -> k2 -> Type -> Constraint
 class
-  IndexedEvent a b c <= DecodeEvent a b c | c -> a b where
-  decodeEvent :: Change -> Maybe c
+  IndexedEvent indexedTypesTagged nonIndexedTypesTagged event
+  <= DecodeEvent indexedTypesTagged nonIndexedTypesTagged event
+  | event -> indexedTypesTagged nonIndexedTypesTagged where
+  decodeEvent :: Change -> Maybe event
 
 instance defaultInstance ::
   ( ArrayParser a_genericTaggedRepresentation

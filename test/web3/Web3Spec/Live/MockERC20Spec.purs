@@ -34,12 +34,12 @@ spec provider =
 
           recipient = nullAddress
 
-          txOptions =
+          transactionOptions =
             defaultTestTxOptions # _from ?~ userAddress
               # _to
               ?~ mockERC20Address
 
-          transferAction = MockERC20.transfer txOptions { to: recipient, amount: amount }
+          transferAction = MockERC20.transfer transactionOptions { to: recipient, amount: amount }
         Tuple _ (MockERC20.Transfer tfr) <-
           assertWeb3 provider
             $ takeEvent (Proxy :: Proxy MockERC20.Transfer) mockERC20Address transferAction
